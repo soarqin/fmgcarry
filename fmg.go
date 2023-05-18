@@ -4,11 +4,13 @@ import (
 	"encoding/binary"
 	"io"
 	"os"
+	"sort"
 )
 
 type Fmg struct {
 	Filename string
 	Text     []string
+	TextMap  map[int32]int
 }
 type FmgHeader struct {
 	Ver             int32
@@ -68,7 +70,7 @@ func FmgLoad(filename string) (*Fmg, error) {
 	}(f)
 
 	var header FmgHeader
-	var largestId int32 = 0
+	var totalCount int32 = 0
 	if err = binary.Read(f, binary.LittleEndian, &header); err != nil {
 		return nil, err
 	}
@@ -77,9 +79,7 @@ func FmgLoad(filename string) (*Fmg, error) {
 		return nil, err
 	}
 	for _, rng := range r {
-		if rng.Last > largestId {
-			largestId = rng.Last
-		}
+		totalCount += rng.Last - rng.First + 1
 	}
 	if _, err = f.Seek(header.StringsOffset, 0); err != nil {
 		return nil, err
@@ -88,12 +88,13 @@ func FmgLoad(filename string) (*Fmg, error) {
 	if err = binary.Read(f, binary.LittleEndian, &o); err != nil {
 		return nil, err
 	}
-	fmg := &Fmg{filename, make([]string, largestId+1)}
+	fmg := &Fmg{filename, make([]string, 0, totalCount), make(map[int32]int)}
 	for _, rng := range r {
 		for i := rng.First; i <= rng.Last; i++ {
 			off := o[i-rng.First+rng.Offset]
 			if off == 0 {
-				fmg.Text[i] = "%NULL%"
+				fmg.TextMap[i] = len(fmg.Text)
+				fmg.Text = append(fmg.Text, "")
 				continue
 			}
 			if _, err = f.Seek(off, 0); err != nil {
@@ -103,7 +104,8 @@ func FmgLoad(filename string) (*Fmg, error) {
 			if s, err = ReadString(f); err != nil {
 				return nil, err
 			}
-			fmg.Text[i] = *s
+			fmg.TextMap[i] = len(fmg.Text)
+			fmg.Text = append(fmg.Text, *s)
 		}
 	}
 	return fmg, nil
@@ -135,28 +137,26 @@ func (fmg *Fmg) Save() error {
 		return err
 	}
 	r := make([]FmgRange, 0)
+	arr := make([]int, 0, len(fmg.TextMap))
+	for k := range fmg.TextMap {
+		arr = append(arr, int(k))
+	}
+	sort.Ints(arr)
 	var stSize int32 = 1
-	var i int
-	for i = 0; i < len(fmg.Text); i++ {
-		if fmg.Text[i] != "" {
-			break
-		}
-	}
 	rng := FmgRange{
-		0, int32(i), int32(i), 0,
+		0, int32(arr[0]), int32(arr[0]), 0,
 	}
-	for i = i + 1; i < len(fmg.Text); i++ {
-		if fmg.Text[i] != "" {
-			if int32(i) == rng.Last+1 {
-				rng.Last = int32(i)
-			} else {
-				r = append(r, rng)
-				rng = FmgRange{
-					stSize, int32(i), int32(i), 0,
-				}
+	for i := 1; i < len(arr); i++ {
+		idx := int32(arr[i])
+		if idx == rng.Last+1 {
+			rng.Last = idx
+		} else {
+			r = append(r, rng)
+			rng = FmgRange{
+				stSize, idx, idx, 0,
 			}
-			stSize++
 		}
+		stSize++
 	}
 	r = append(r, rng)
 	if err = binary.Write(f, binary.LittleEndian, &r); err != nil {
@@ -172,14 +172,16 @@ func (fmg *Fmg) Save() error {
 	}
 	for _, rng := range r {
 		for i := rng.First; i <= rng.Last; i++ {
-			if fmg.Text[i] == "%NULL%" {
+			idx := fmg.TextMap[i]
+			txt := fmg.Text[idx]
+			if txt == "" {
 				o[i-rng.First+rng.Offset] = 0
 				continue
 			}
 			if o[i-rng.First+rng.Offset], err = f.Seek(0, 1); err != nil {
 				return err
 			}
-			if err = WriteString(f, fmg.Text[i]); err != nil {
+			if err = WriteString(f, txt); err != nil {
 				return err
 			}
 		}
@@ -211,4 +213,20 @@ func (fmg *Fmg) Save() error {
 		return err
 	}
 	return nil
+}
+
+func (fmg *Fmg) GetText(id int32) string {
+	if idx, ok := fmg.TextMap[id]; ok {
+		return fmg.Text[idx]
+	}
+	return ""
+}
+
+func (fmg *Fmg) SetText(id int32, text string) {
+	if idx, ok := fmg.TextMap[id]; ok {
+		fmg.Text[idx] = text
+		return
+	}
+	fmg.TextMap[id] = len(fmg.Text)
+	fmg.Text = append(fmg.Text, text)
 }

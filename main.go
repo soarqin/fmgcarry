@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -32,33 +33,31 @@ func main() {
 			return err
 		}
 		dirty := false
-		m := min(len(fmg1.Text), len(fmg2.Text))
 		if hasTxt {
 			txt, _ := loadTxt(filepath.Join(os.Args[4], d.Name()+".txt"))
 			if len(fmg3.Text) < len(fmg2.Text) {
 				fmg3.Text = append(fmg3.Text, make([]string, len(fmg2.Text)-len(fmg3.Text))...)
 				dirty = true
 			}
-			for i := 0; i < m; i++ {
-				if isEmpty(fmg1.Text[i]) && isEmpty(fmg2.Text[i]) {
-					continue
-				}
-				if fmg1.Text[i] != fmg2.Text[i] {
-					if text, found := txt[i]; found {
-						fmg3.Text[i] = text
-					} else {
-						fmg3.Text[i] = fmg2.Text[i]
+			for k, v := range fmg2.TextMap {
+				if idx, ok := fmg1.TextMap[k]; ok {
+					if isEmpty(fmg1.Text[idx]) && isEmpty(fmg2.Text[v]) {
+						continue
 					}
+					if fmg1.Text[idx] != fmg2.Text[v] {
+						fmg3.SetText(k, fmg2.Text[v])
+						dirty = true
+					}
+				} else {
+					fmg3.SetText(k, fmg2.Text[v])
 					dirty = true
 				}
 			}
-			if len(fmg2.Text) > m {
-				copy(fmg3.Text[m:], fmg2.Text[m:])
-				for i := m; i < len(fmg2.Text); i++ {
-					if text, found := txt[i]; found {
-						fmg3.Text[i] = text
-					}
+			for k, v := range txt {
+				if v == "" {
+					continue
 				}
+				fmg3.SetText(int32(k), v)
 				dirty = true
 			}
 			if dirty {
@@ -73,47 +72,38 @@ func main() {
 				return err
 			}
 			defer of.Close()
-			l := len(fmg3.Text)
-			for i := 0; i < m; i++ {
-				if isEmpty(fmg1.Text[i]) && isEmpty(fmg2.Text[i]) {
-					continue
-				}
-				if fmg1.Text[i] != fmg2.Text[i] {
-					if !isEmpty(fmg1.Text[i]) {
-						if _, err = io.WriteString(of, "< "+strconv.Itoa(i)+":"+strconv.Quote(fmg1.Text[i])+"\n"); err != nil {
-							return err
-						}
-					}
-					if _, err = io.WriteString(of, "> "+strconv.Itoa(i)+":"+strconv.Quote(fmg2.Text[i])+"\n"); err != nil {
-						return err
-					}
-					if i < l && !isEmpty(fmg3.Text[i]) {
-						if _, err = io.WriteString(of, "- "+strconv.Itoa(i)+":"+strconv.Quote(fmg3.Text[i])+"\n"); err != nil {
-							return err
-						}
-					}
-					if _, err = io.WriteString(of, "= "+strconv.Itoa(i)+":\"\"\n"); err != nil {
-						return err
-					}
-					dirty = true
-				}
-			}
-			if len(fmg2.Text) > m {
-				for i := m; i < len(fmg2.Text); i++ {
-					if fmg2.Text[i] == "" || fmg2.Text[i] == "%NULL%" {
+			arr := make([]int, 0)
+			for k, v := range fmg2.TextMap {
+				if idx, ok := fmg1.TextMap[k]; ok {
+					if isEmpty(fmg1.Text[idx]) && isEmpty(fmg2.Text[v]) {
 						continue
 					}
-					if _, err = io.WriteString(of, "> "+strconv.Itoa(i)+":"+strconv.Quote(fmg2.Text[i])+"\n"); err != nil {
+					if fmg1.Text[idx] != fmg2.Text[v] {
+						arr = append(arr, int(k))
+					}
+				} else {
+					arr = append(arr, int(k))
+				}
+			}
+			sort.Ints(arr)
+			for _, i := range arr {
+				if idx, ok := fmg1.TextMap[int32(i)]; ok && !isEmpty(fmg1.Text[idx]) {
+					if _, err = io.WriteString(of, "< "+strconv.Itoa(i)+":"+strconv.Quote(fmg1.Text[idx])+"\n"); err != nil {
 						return err
 					}
-					if i < l {
-						if _, err = io.WriteString(of, "- "+strconv.Itoa(i)+":"+strconv.Quote(fmg3.Text[i])+"\n"); err != nil {
-							return err
-						}
-					}
-					if _, err = io.WriteString(of, "= "+strconv.Itoa(i)+":\"\"\n"); err != nil {
+				}
+				if idx, ok := fmg2.TextMap[int32(i)]; ok && !isEmpty(fmg2.Text[idx]) {
+					if _, err = io.WriteString(of, "> "+strconv.Itoa(i)+":"+strconv.Quote(fmg2.Text[idx])+"\n"); err != nil {
 						return err
 					}
+				}
+				if idx, ok := fmg3.TextMap[int32(i)]; ok && !isEmpty(fmg3.Text[idx]) {
+					if _, err = io.WriteString(of, "- "+strconv.Itoa(i)+":"+strconv.Quote(fmg3.Text[idx])+"\n"); err != nil {
+						return err
+					}
+				}
+				if _, err = io.WriteString(of, "= "+strconv.Itoa(i)+":\"\"\n"); err != nil {
+					return err
 				}
 				dirty = true
 			}
@@ -133,15 +123,8 @@ func main() {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func isEmpty(s string) bool {
-	return s == "" || s == "[ERROR]" || s == "%NULL%"
+	return s == "" || s == "[ERROR]"
 }
 
 func loadTxt(filename string) (map[int]string, error) {
