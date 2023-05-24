@@ -147,6 +147,9 @@ func loadTxt(filename string) (map[int]string, error) {
 		}
 		var text string
 		if text, err = strconv.Unquote(strings.TrimSpace(line[sep+1:])); err != nil || text == "" {
+			if err != nil {
+				println("Error unquote: ", line)
+			}
 			continue
 		}
 		var idx int
