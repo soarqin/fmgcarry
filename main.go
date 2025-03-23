@@ -92,18 +92,22 @@ func main() {
 						return err
 					}
 				}
+				hasNew := false
 				if idx, ok := fmg2.TextMap[int32(i)]; ok && !isEmpty(fmg2.Text[idx]) {
 					if _, err = io.WriteString(of, "> "+strconv.Itoa(i)+":"+strconv.Quote(fmg2.Text[idx])+"\n"); err != nil {
 						return err
 					}
+					hasNew = true
 				}
 				if idx, ok := fmg3.TextMap[int32(i)]; ok && !isEmpty(fmg3.Text[idx]) {
 					if _, err = io.WriteString(of, "- "+strconv.Itoa(i)+":"+strconv.Quote(fmg3.Text[idx])+"\n"); err != nil {
 						return err
 					}
 				}
-				if _, err = io.WriteString(of, "= "+strconv.Itoa(i)+":\"\"\n"); err != nil {
-					return err
+				if hasNew {
+					if _, err = io.WriteString(of, "= "+strconv.Itoa(i)+":\"\"\n"); err != nil {
+						return err
+					}
 				}
 				dirty = true
 			}
