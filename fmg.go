@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
+	"unicode"
 )
 
 type Fmg struct {
@@ -105,7 +107,7 @@ func FmgLoad(filename string) (*Fmg, error) {
 				return nil, err
 			}
 			fmg.TextMap[i] = len(fmg.Text)
-			fmg.Text = append(fmg.Text, *s)
+			fmg.Text = append(fmg.Text, strings.TrimRightFunc(*s, unicode.IsSpace))
 		}
 	}
 	return fmg, nil
@@ -228,5 +230,5 @@ func (fmg *Fmg) SetText(id int32, text string) {
 		return
 	}
 	fmg.TextMap[id] = len(fmg.Text)
-	fmg.Text = append(fmg.Text, text)
+	fmg.Text = append(fmg.Text, strings.TrimRightFunc(text, unicode.IsSpace))
 }
