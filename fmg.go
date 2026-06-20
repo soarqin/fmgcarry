@@ -59,6 +59,14 @@ func WriteString(s io.Writer, str string) error {
 	return nil
 }
 
+func trimRight(s string) string {
+	r := strings.TrimRightFunc(s, unicode.IsSpace)
+	if r == "" {
+		return s
+	}
+	return r
+}
+
 func FmgLoad(filename string) (*Fmg, error) {
 	f, err := os.Open(filename)
 	if err != nil {
@@ -107,7 +115,7 @@ func FmgLoad(filename string) (*Fmg, error) {
 				return nil, err
 			}
 			fmg.TextMap[i] = len(fmg.Text)
-			fmg.Text = append(fmg.Text, strings.TrimRightFunc(*s, unicode.IsSpace))
+			fmg.Text = append(fmg.Text, trimRight(*s))
 		}
 	}
 	return fmg, nil
@@ -230,5 +238,5 @@ func (fmg *Fmg) SetText(id int32, text string) {
 		return
 	}
 	fmg.TextMap[id] = len(fmg.Text)
-	fmg.Text = append(fmg.Text, strings.TrimRightFunc(text, unicode.IsSpace))
+	fmg.Text = append(fmg.Text, trimRight(text))
 }
