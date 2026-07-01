@@ -128,7 +128,7 @@ func main() {
 }
 
 func isEmpty(s string) bool {
-	return s == "" || s == "[ERROR]"
+	return strings.TrimSpace(s) == "" || s == "[ERROR]"
 }
 
 func loadTxt(filename string) (map[int]string, error) {

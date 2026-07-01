@@ -9,6 +9,8 @@ import (
 	"unicode"
 )
 
+const NullMarker = "%null%"
+
 type Fmg struct {
 	Filename string
 	Text     []string
@@ -104,7 +106,7 @@ func FmgLoad(filename string) (*Fmg, error) {
 			off := o[i-rng.First+rng.Offset]
 			if off == 0 {
 				fmg.TextMap[i] = len(fmg.Text)
-				fmg.Text = append(fmg.Text, "")
+				fmg.Text = append(fmg.Text, NullMarker)
 				continue
 			}
 			if _, err = f.Seek(off, 0); err != nil {
@@ -184,7 +186,7 @@ func (fmg *Fmg) Save() error {
 		for i := rng.First; i <= rng.Last; i++ {
 			idx := fmg.TextMap[i]
 			txt := fmg.Text[idx]
-			if txt == "" {
+			if txt == NullMarker {
 				o[i-rng.First+rng.Offset] = 0
 				continue
 			}
